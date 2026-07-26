@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>KlutZ_OBLIQUED</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="titleScreen">
+    <canvas id="titleView"></canvas>
+    <canvas id="titleUI"></canvas>
+</div>
+
+<div class="game-container">
+    <div id="canvas-wrapper">
+        <canvas id="gameCanvas"></canvas>
+        <div id="deathOverlay" class="overlay" style="background-color: transparent;">
+            <div class="overlay-title" style="color: #fff; text-shadow: 0 0 20px rgba(244, 63, 94, 0.6);">KlutZ ASSIMILATED</div>
+        </div>
+    </div>
+</div>
+
+<img id="endingPlayerSprite" src="" alt="" style="display:none;">
+
+<div id="endingOverlay" class="overlay" style="background-color: transparent;">
+    <div class="overlay-title" style="color: #000; text-shadow: 0 0 20px rgba(74, 222, 128, 0.6);">KlutZ DETACHED</div>
+</div>
+
+<!--
+    読み込み順が意味を持つ点に注意（後のファイルほど前のファイルの内容に依存する）。
+    データ/定数 -> 状態 -> ユーティリティ -> ワールド構築 -> 入力/ループ/移動/レーザー -> 描画 -> 起動処理
+    bgm.js / sfx.js はどちらも他のどのファイルにも依存しない独立モジュール
+    (それぞれwindow.BGM / window.SFXを公開するだけ)なので、
+    title.jsより前であればどこでもよい。
+-->
+<script src="js/stage-data.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/assets.js"></script>
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/world.js"></script>
+<script src="js/input.js"></script>
+<script src="js/loop.js"></script>
+<script src="js/movement.js"></script>
+<script src="js/laser.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+<script src="js/bgm.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/title.js"></script>
+
+</body>
+</html>
