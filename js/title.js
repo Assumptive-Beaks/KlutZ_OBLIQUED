@@ -126,13 +126,154 @@
   worldLetters.forEach(e => e.cells = getGlyphCells(e.ch));
 
   // ==================================================================
+  // 外枠画像・輪郭抽出
+  // ==================================================================
+  // 外枠(旧: 文字幅に合わせた矩形)を、読み込んだモノクロ画像の境界(輪郭)に
+  // 差し替えるための処理。以下の3ステップで行う:
+  //   1) 画像をオフスクリーンに描画し、ピクセルごとに「形」か「背景」かを判定してmask化する
+  //   2) maskの境界を1px単位の線分としてすべて拾い、終点→始点をたどって閉ループに連結する
+  //      (この方式だと外周だけでなく「穴」も自然に別ループとして出てくる。例えば
+  //      不透明な部分をくり抜いて絵柄にしているアイコン画像などで、穴の輪郭線も一緒に描ける)
+  //   3) 閉ループをワールド座標へスケール・配置し、毎フレーム(frameOffsetを加味して)
+  //      スクリーン座標のPath2Dに変換してストロークする
+  const FRAME_LUMA_THRESHOLD = 128; // これ以上の明るさ(輝度)を「形」とみなす
+  // 画像そのものの読み込み(パス・実際のImage生成)はassets.jsのpreloadFrameImages
+  // (FRAME_IMAGE_SOURCES.frame = 'assets/frame-shape.png')に任せる。他のタイル画像・
+  // 臓器画像と全く同じmakeTileImage()経由の読み込み方式で、assetsフォルダも共通。
+  // title.js側はここから先(マスク化・輪郭抽出)だけを担当する。
+
+  // 画像から2値マスクを作る。明るさ(輝度)がFRAME_LUMA_THRESHOLD以上なら「形」とみなす。
+  function buildMaskFromImage(img) {
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth || img.width; cv.height = img.naturalHeight || img.height;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const W = cv.width, H = cv.height;
+    const data = ctx.getImageData(0, 0, W, H).data;
+
+    const mask = new Uint8Array(W * H);
+    for (let i = 0, p = 0; p < W * H; i += 4, p++) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      mask[p] = (0.299 * r + 0.587 * g + 0.114 * b) >= FRAME_LUMA_THRESHOLD ? 1 : 0;
+    }
+    return { mask, W, H };
+  }
+
+  // mask(0/1の2値ラスタ)の境界を、閉じたポリゴン(複数可・穴も可)の配列として返す。
+  // 各ポリゴンは [[x,y], ...] という画像ピクセル座標(左上原点)の配列。
+  function traceContours(mask, W, H) {
+    const isOn = (x, y) => x >= 0 && x < W && y >= 0 && y < H && mask[y * W + x] === 1;
+    const edges = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!isOn(x, y)) continue;
+      if (!isOn(x, y - 1)) edges.push([x, y, x + 1, y]);         // 上辺
+      if (!isOn(x + 1, y)) edges.push([x + 1, y, x + 1, y + 1]); // 右辺
+      if (!isOn(x, y + 1)) edges.push([x + 1, y + 1, x, y + 1]); // 下辺
+      if (!isOn(x - 1, y)) edges.push([x, y + 1, x, y]);         // 左辺
+    }
+    const byStart = new Map();
+    edges.forEach(e => byStart.set(e[0] + ',' + e[1], e));
+    const visited = new Set(), loops = [];
+    edges.forEach(e => {
+      const k0 = e[0] + ',' + e[1];
+      if (visited.has(k0)) return;
+      const loop = [];
+      let cur = e, guard = edges.length + 1;
+      while (guard-- > 0) {
+        const k = cur[0] + ',' + cur[1];
+        if (visited.has(k)) break;
+        visited.add(k);
+        loop.push([cur[0], cur[1]]);
+        const next = byStart.get(cur[2] + ',' + cur[3]);
+        if (!next) break;
+        cur = next;
+        if (cur[0] === loop[0][0] && cur[1] === loop[0][1]) break;
+      }
+      if (loop.length >= 3) loops.push(simplifyCollinear(loop));
+    });
+    return loops;
+  }
+  // 同じ方向へ連続する点を間引き、折れ曲がる点だけを残す(頂点数を大きく削減できる)
+  function simplifyCollinear(points) {
+    const n = points.length, out = [];
+    for (let i = 0; i < n; i++) {
+      const [px, py] = points[(i - 1 + n) % n], [cx, cy] = points[i], [nx, ny] = points[(i + 1) % n];
+      const dx1 = cx - px, dy1 = cy - py, dx2 = nx - cx, dy2 = ny - cy;
+      if (dx1 * dy2 - dy1 * dx2 !== 0) out.push([cx, cy]);
+    }
+    return out.length >= 3 ? out : points;
+  }
+
+  // 抽出した輪郭(画像ピクセル座標系)を、元の文字幅ベースの矩形と同程度の見た目の
+  // 横幅になるようワールド座標系へスケール・配置する(アスペクト比は画像のまま保つ)。
+  let framePathData = null, frameScale = 1, frameOriginX = 0, frameOriginY = 0;
+  function setFrameShapeFromLoops(loops, pixelW, pixelH) {
+    framePathData = loops;
+    const targetW = CONTENT_WIDTH + PADDING_X * 2;
+    frameScale = targetW / pixelW;
+    const worldW = pixelW * frameScale, worldH = pixelH * frameScale;
+    frameOriginX = CONTENT_WIDTH / 2 - worldW / 2;
+    frameOriginY = -worldH / 2;
+  }
+  // 画像読み込みに失敗した場合のフォールバック。全面onの矩形マスクをtraceContoursに
+  // 通すことで、従来の「文字幅に合わせた矩形」と等価な輪郭を同じコード経路で作る。
+  function fallbackRectShape() {
+    const w = 100, h = Math.round(100 * (CONTENT_HEIGHT + PADDING_Y * 2) / (CONTENT_WIDTH + PADDING_X * 2));
+    const mask = new Uint8Array(w * h).fill(1);
+    setFrameShapeFromLoops(traceContours(mask, w, h), w, h);
+  }
+  function loadFrameImage() {
+    return new Promise((resolve, reject) => {
+      preloadFrameImages(img => {
+        if (!img.__ready) { reject(new Error('画像の読み込みに失敗しました: ' + FRAME_IMAGE_SOURCES.frame)); return }
+        try {
+          const { mask, W, H } = buildMaskFromImage(img);
+          const loops = traceContours(mask, W, H);
+          if (loops.length === 0) throw new Error('輪郭が見つかりませんでした(閾値を調整してください)');
+          setFrameShapeFromLoops(loops, W, H);
+          resolve();
+        } catch (err) { reject(err) }
+      });
+    });
+  }
+
+  // ==================================================================
   // 座標変換 / リサイズ
   // ==================================================================
   function worldToScreen(x, y) { return { x: (x - cam.x) * zoom + VW / 2, y: (y - cam.y) * zoom + VH / 2 } }
   function inViewport(x, y) { const g = worldToScreen(x, y), half = GRID * zoom / 2; return g.x + half >= 0 && g.x - half <= VW && g.y + half >= 0 && g.y - half <= VH }
-  // 外枠(タイトル全体を囲む矩形)の左上・右下をスクリーン座標で返す。
+
+  // 外枠(画像の輪郭)をスクリーン座標のPath2Dとして返す。offset省略時は現在の
+  // frameOffset(押し出し演出用オフセット)を使う。
   // syncBodyStripePattern/drawBoundaryFrame/updateBoundaryFrameRegionで共用する。
-  function frameScreenRect() { return { p1: worldToScreen(WORLD_MIN_X, WORLD_MIN_Y), p2: worldToScreen(WORLD_MAX_X, WORLD_MAX_Y) } }
+  function frameScreenPath(offset) {
+    offset = offset || frameOffset;
+    const path = new Path2D();
+    if (!framePathData) return path;
+    framePathData.forEach(loop => {
+      loop.forEach(([px, py], i) => {
+        const g = worldToScreen(frameOriginX + px * frameScale, frameOriginY + py * frameScale);
+        const x = g.x + offset.x, y = g.y + offset.y;
+        if (i === 0) path.moveTo(x, y); else path.lineTo(x, y);
+      });
+      path.closePath();
+    });
+    return path;
+  }
+  // 外枠の輪郭全体を覆うスクリーン座標のバウンディングボックスを返す。
+  // updateBoundaryFrameRegionが差分更新すべき範囲を求めるのに使う。
+  function frameScreenBBox(offset) {
+    offset = offset || frameOffset;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    if (!framePathData) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    framePathData.forEach(loop => loop.forEach(([px, py]) => {
+      const g = worldToScreen(frameOriginX + px * frameScale, frameOriginY + py * frameScale);
+      const x = g.x + offset.x, y = g.y + offset.y;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }));
+    return { minX, minY, maxX, maxY };
+  }
 
   function resize() {
     if (!running) return;
@@ -171,9 +312,8 @@
     const frameCanvas = document.createElement('canvas');
     frameCanvas.width = VW; frameCanvas.height = VH;
     const fctx = frameCanvas.getContext('2d');
-    const { p1, p2 } = frameScreenRect();
-    fctx.strokeStyle = '#fff'; fctx.lineWidth = t;
-    fctx.strokeRect(p1.x + frameOffset.x, p1.y + frameOffset.y, p2.x - p1.x, p2.y - p1.y);
+    fctx.strokeStyle = '#fff'; fctx.lineWidth = t; fctx.lineJoin = 'round';
+    fctx.stroke(frameScreenPath());
 
     document.body.style.backgroundImage = `url(${frameCanvas.toDataURL()}), url(${black.toDataURL()})`;
     document.body.style.backgroundSize = `${VW}px ${VH}px, ${t}px ${t}px`;
@@ -185,9 +325,8 @@
   // ソース描画（文字の反転具合を1オフスクリーンキャンバスに焼き込む）
   // ==================================================================
   function drawBoundaryFrame() {
-    const { p1, p2 } = frameScreenRect();
-    s.strokeStyle = '#fff'; s.lineWidth = BASE_TILE * zoom;
-    s.strokeRect(p1.x + frameOffset.x, p1.y + frameOffset.y, p2.x - p1.x, p2.y - p1.y);
+    s.strokeStyle = '#fff'; s.lineWidth = BASE_TILE * zoom; s.lineJoin = 'round';
+    s.stroke(frameScreenPath());
   }
   // expelFrame専用の軽量パス。外枠がframeOffsetの移動で描き直されたとき、画面全体を
   // prepareSource+computeBaseTilingで舐め直す代わりに、外枠のストロークが実際に触れた
@@ -195,27 +334,19 @@
   // 再判定する。ストロークを黒(消す)→白(描く)の順で塗り直す都合上、アンチエイリアスの縁に
   // ごくわずかな残像が一瞬乗ることがあるが、遷移完了時には必ずstateVersion++を伴う完全な
   // 再計算が入る(enterGame参照)ため、最終的にbodyへ焼き込まれる状態には影響しない。
+  // 矩形だった頃は「動いた帯」だけを4辺ぶん更新すれば十分だったが、任意形状の
+  // 輪郭ではそれができないため、新旧位置を合わせたバウンディングボックス1枚を
+  // まとめて再判定する(押し出し演出の短い間だけの処理なので許容する)。
   function updateBoundaryFrameRegion(prevOffset) {
-    const { p1, p2 } = frameScreenRect();
     const lw = BASE_TILE * zoom, pad = lw;
+    s.lineWidth = lw; s.lineJoin = 'round';
+    s.strokeStyle = '#000'; s.stroke(frameScreenPath(prevOffset));   // 旧位置を消す
+    s.strokeStyle = '#fff'; s.stroke(frameScreenPath(frameOffset));  // 新位置を描く
 
-    const oldLeft = p1.x + prevOffset.x, oldTop = p1.y + prevOffset.y;
-    const oldRight = p2.x + prevOffset.x, oldBottom = p2.y + prevOffset.y;
-    const newLeft = p1.x + frameOffset.x, newTop = p1.y + frameOffset.y;
-    const newRight = p2.x + frameOffset.x, newBottom = p2.y + frameOffset.y;
-
-    s.lineWidth = lw;
-    s.strokeStyle = '#000'; s.strokeRect(oldLeft, oldTop, oldRight - oldLeft, oldBottom - oldTop);
-    s.strokeStyle = '#fff'; s.strokeRect(newLeft, newTop, newRight - newLeft, newBottom - newTop);
-
-    const band = (minX, minY, maxX, maxY) =>
-      updateRegionTiling(minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2);
-    const left = Math.min(oldLeft, newLeft), right = Math.max(oldRight, newRight);
-    const top = Math.min(oldTop, newTop), bottom = Math.max(oldBottom, newBottom);
-    band(left, Math.min(oldTop, newTop), right, Math.max(oldTop, newTop));           // 上辺
-    band(left, Math.min(oldBottom, newBottom), right, Math.max(oldBottom, newBottom)); // 下辺
-    band(Math.min(oldLeft, newLeft), top, Math.max(oldLeft, newLeft), bottom);       // 左辺
-    band(Math.min(oldRight, newRight), top, Math.max(oldRight, newRight), bottom);   // 右辺
+    const oldBox = frameScreenBBox(prevOffset), newBox = frameScreenBBox(frameOffset);
+    const minX = Math.min(oldBox.minX, newBox.minX) - pad, maxX = Math.max(oldBox.maxX, newBox.maxX) + pad;
+    const minY = Math.min(oldBox.minY, newBox.minY) - pad, maxY = Math.max(oldBox.maxY, newBox.maxY) + pad;
+    updateRegionTiling(minX, minY, maxX - minX, maxY - minY);
   }
   // 1文字ぶんのグリフのうち、1マス(r,c)を貼り付ける際の画面上のジオメトリを返す。
   // フル描画(drawWorldLetterSource)と1マスだけの差分描画(paintCell)の両方から使う。
@@ -676,7 +807,12 @@
     requestAnimationFrame(() => { resizeScheduled = false; resize(); });
   });
 
-  resize();
-  revealLetters();
-  startTwinkleLoop();
+  loadFrameImage().catch(err => {
+    console.warn('外枠画像の読み込みに失敗したため、従来の矩形にフォールバックします。', err);
+    fallbackRectShape();
+  }).finally(() => {
+    resize();
+    revealLetters();
+    startTwinkleLoop();
+  });
 })();

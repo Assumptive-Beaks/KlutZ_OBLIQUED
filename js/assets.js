@@ -73,12 +73,34 @@ function drawOrganImage(key, px, py, size, centered) {
     return false;
 }
 
-function makeTileImage(src) {
+// ============================================================
+// タイトル画面の外枠(輪郭抽出)用アセット
+// title.jsが読み込み後の画像を輪郭抽出(mask化→traceContours)に使う。
+// 読み込み完了のタイミングでゲーム描画(draw())を呼ぶ必要はなく、
+// 呼び出し側(title.js)の処理を実行したいので、preloadTileImages/
+// preloadOrganImagesとは別に、makeTileImageのonReadyコールバックを
+// 使う専用のpreload関数を用意する。読み込み方式そのものは他のアセットと同じ。
+// ============================================================
+const FRAME_IMAGE_SOURCES = {
+    frame: 'assets/frame-shape.png',
+};
+
+const frameImages = {};
+
+function preloadFrameImages(onReady) {
+    for (const key in FRAME_IMAGE_SOURCES) {
+        frameImages[key] = makeTileImage(FRAME_IMAGE_SOURCES[key], onReady);
+    }
+}
+
+// onReadyを渡した場合、読み込み完了(成功/失敗どちらも)時にdraw()の代わりにそちらを呼ぶ。
+// 省略時は従来どおり成功時にdraw()を呼ぶ(ゲーム内タイル画像・臓器画像はこちらの挙動のまま)。
+function makeTileImage(src, onReady) {
     const img = new Image();
     img.__ready = false;
     if (src) {
-        img.onload = () => { img.__ready = true; draw(); };
-        img.onerror = () => { img.__ready = false; };
+        img.onload = () => { img.__ready = true; if (onReady) onReady(img); else draw(); };
+        img.onerror = () => { img.__ready = false; if (onReady) onReady(img); };
         img.src = src;
     }
     return img;
