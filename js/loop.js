@@ -14,6 +14,16 @@ function updateBackgroundBrightness() {
     wrapper.style.setProperty('--bg-tint-brightness', brightness.toFixed(3));
 }
 
+// 背景の縞模様の拡大倍率(線の太さ)を、1F→MAX_FLOOR階にかけて単調に拡大する。
+const STRIPE_ZOOM_MIN = 1;
+const STRIPE_ZOOM_MAX = 10;
+function updateBackgroundStripeZoom() {
+    if (!currentRoom || !window.setStripeZoom) return;
+    const t = (currentRoom.floor - 1) / (MAX_FLOOR - 1);
+    zoom = STRIPE_ZOOM_MIN + t * STRIPE_ZOOM_MAX;
+    window.setStripeZoom(zoom);
+}
+
 function finishRoomEntry() {
     nextRoom = null;
 
@@ -30,6 +40,7 @@ function finishRoomEntry() {
     syncRoomObjects();
     calculateLaser();
     updateBackgroundBrightness();
+    updateBackgroundStripeZoom();
     draw();
 }
 
@@ -108,6 +119,7 @@ function animate() {
             calculateLaser();
             checkArrivalHazards();
             updateBackgroundBrightness();
+            updateBackgroundStripeZoom();
         }
     }
     draw();

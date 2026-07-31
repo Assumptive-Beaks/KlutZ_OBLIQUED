@@ -7,11 +7,18 @@
 const TILE_IMAGE_SOURCES = {
     floor: 'assets/eye_cover.png',
     floor_close: 'assets/eye_close.png',
+    // 特定の部屋専用の差し替えタイル（下のALT_TILE_ROOM_IDS参照）
+    floor_alt: 'assets/stripe1.png',
+    floor_close_alt: 'assets/stripe1.png',
     pupil: 'assets/pupil.png',
     hole: ['assets/mouth_a.png','assets/mouth_i.png','assets/mouth_u.png','assets/mouth_e.png','assets/mouth_o.png'],
+    hole_alt: ['assets/stripe3.png','assets/stripe3.png','assets/stripe3.png','assets/stripe3.png','assets/stripe3.png'],
     filled_hole: 'assets/mouth_m.png',
+    filled_hole_alt: 'assets/stripe4.png',
     wall: 'assets/meat.png',
+    wall_alt: 'assets/stripe2.png',
     mirror: 'assets/bone.png',
+    mirror_alt: 'assets/stripe2.png',
     goal: '',
     entrance: '',
     player: 'assets/KlutZ.png',
@@ -22,6 +29,32 @@ const TILE_IMAGE_SOURCES = {
     laser_source: 'assets/heart.png',
     enemy: 'assets/bigot.png',
 };
+
+// ============================================================
+// 部屋単位でのタイル差し替え設定
+// ここに room.id（例: '8F-2'）を追加すると、その部屋だけ
+// で描画されるようになる（対応する *_alt エントリがTILE_IMAGE_SOURCESに
+// ある場合のみ差し替わり、無ければ通常タイルにフォールバックする）。
+// 試験導入として8F-1, 8F-2, 7F-1を指定。
+// ============================================================
+const ALT_TILE_ROOM_IDS = new Set([
+    '8F-1',
+    '8F-2',
+    '7F-1',
+]);
+
+// baseKey（'floor' / 'floor_close' / 'wall' / 'mirror' など）を、
+// その部屋がALT_TILE_ROOM_IDSに含まれていれば差し替え版キーに変換する。
+// render.js側のdrawTileImage呼び出し箇所はこれを経由するだけでよい。
+function getRoomTileKey(room, baseKey) {
+    if (room && ALT_TILE_ROOM_IDS.has(room.id)) {
+        const altKey = baseKey + '_alt';
+        if (TILE_IMAGE_SOURCES[altKey] !== undefined) {
+            return altKey;
+        }
+    }
+    return baseKey;
+}
 
 const tileImages = {};
 

@@ -321,6 +321,21 @@
     document.body.style.backgroundPosition = `0 0, ${phaseX}px ${phaseY}px`;
   }
 
+  // パズル本編用: タイトル画面の外枠・文字は使わず、繰り返しの斜線タイルだけを
+  // 指定した倍率(z)でbody背景に適用する。本編側(loop.js)が現在階層に応じて
+  // 呼び出す想定。VW/VHはタイトル画面終了後resize()が働かなくなり(running=false)
+  // 更新されなくなるため、ここではinnerWidth/innerHeightに依存しないよう
+  // 単純な繰り返し背景として扱う(位相合わせのカメラ計算は行わない)。
+  function applyStripeZoom(z) {
+    const t = BASE_TILE * z;
+    const { black } = getTileBitmaps(z);
+    document.body.style.backgroundImage = `url(${black.toDataURL()})`;
+    document.body.style.backgroundSize = `${t}px ${t}px`;
+    document.body.style.backgroundRepeat = 'repeat';
+    document.body.style.backgroundPosition = '0 0';
+  }
+  window.setStripeZoom = applyStripeZoom;
+
   // ==================================================================
   // ソース描画（文字の反転具合を1オフスクリーンキャンバスに焼き込む）
   // ==================================================================

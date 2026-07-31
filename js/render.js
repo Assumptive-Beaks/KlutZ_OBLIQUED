@@ -472,7 +472,7 @@ function drawRoomAndEntities(room, offX, offY) {
             if (isOffscreen(px, py)) continue;
 
             if (staticGrid[worldY][worldX] === 'hole') {
-                if (!drawIndexedTileImage('hole', holeVariant[worldY][worldX], px, py, cellSize)) {
+                if (!drawIndexedTileImage(getRoomTileKey(room, 'hole'), holeVariant[worldY][worldX], px, py, cellSize)) {
                     ctx.fillStyle = '#1e1b4b';
                     ctx.fillRect(px, py, cellSize, cellSize);
                     ctx.strokeStyle = '#4338ca';
@@ -482,7 +482,7 @@ function drawRoomAndEntities(room, offX, offY) {
                     ctx.fillRect(px + 8, py + 8, cellSize - 16, cellSize - 16);
                 }
             } else if (staticGrid[worldY][worldX] === 'filled_hole') {
-                if (!drawTileImage('filled_hole', px, py, cellSize)) {
+                if (!drawTileImage(getRoomTileKey(room, 'filled_hole'), px, py, cellSize)) {
                     ctx.fillStyle = '#0f172a';
                     ctx.fillRect(px, py, cellSize, cellSize);
                     ctx.strokeStyle = '#161e2e';
@@ -499,7 +499,7 @@ function drawRoomAndEntities(room, offX, offY) {
             } else {
                 const distToPlayer = Math.hypot(worldX - playerPos.x, worldY - playerPos.y);
                 const isNearPlayer = distToPlayer <= 1;
-                const floorKey = isNearPlayer ? 'floor_close' : 'floor';
+                const floorKey = getRoomTileKey(room, isNearPlayer ? 'floor_close' : 'floor');
 
                 const floorReady = tileImages[floorKey] && tileImages[floorKey].__ready;
                 if (!floorReady) {
@@ -600,10 +600,10 @@ function drawRoomAndEntities(room, offX, offY) {
 
             switch (entity.type) {
                 case 'wall': {
-                    const wallScale = pulseScaleIf(room === currentRoom && laserHitCells.has(cellKey(worldX, worldY)));
+                    const wallScale = pulseScaleIf(!ALT_TILE_ROOM_IDS.has(room.id) && room === currentRoom && laserHitCells.has(cellKey(worldX, worldY)));
                     const wSize = cellSize * wallScale;
                     const wCx = px + cellSize / 2, wCy = py + cellSize / 2;
-                    if (!drawTileImage('wall', wCx, wCy, wSize, true)) {
+                    if (!drawTileImage(getRoomTileKey(room, 'wall'), wCx, wCy, wSize, true)) {
                         ctx.fillStyle = '#b45309';
                         ctx.fillRect(wCx - wSize / 2, wCy - wSize / 2, wSize, wSize);
                         ctx.strokeStyle = '#78350f';
@@ -613,11 +613,11 @@ function drawRoomAndEntities(room, offX, offY) {
                     break;
                 }
                 case 'mirror': {
-                    const mirrorScale = pulseScaleIf(room === currentRoom && laserHitCells.has(cellKey(worldX, worldY)));
+                    const mirrorScale = pulseScaleIf(!ALT_TILE_ROOM_IDS.has(room.id) && room === currentRoom && laserHitCells.has(cellKey(worldX, worldY)));
                     const mSize = cellSize * mirrorScale;
                     const mCx = px + cellSize / 2, mCy = py + cellSize / 2;
                     const mHalf = mSize / 2;
-                    if (!drawTileImage('mirror', mCx, mCy, mSize, true)) {
+                    if (!drawTileImage(getRoomTileKey(room, 'mirror'), mCx, mCy, mSize, true)) {
                         ctx.fillStyle = '#1e293b';
                         ctx.fillRect(mCx - mHalf, mCy - mHalf, mSize, mSize);
                         ctx.fillStyle = '#0f766e';
