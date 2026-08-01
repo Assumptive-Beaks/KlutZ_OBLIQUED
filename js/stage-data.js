@@ -5,7 +5,6 @@
 //////////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////////
-//全45部屋。現在39ステージと5ストーリー。残り1ステージ。
 
 const WORDS_10F = ['HeaR', 'KlutZ.', 'JaMmed,', 'TurNed,', 'SomehoW', 'ArriVed.', 'FiXed,', 'ChanGed,', 'ProbablY', 'OBLIQUED.'];
 const ORGAN_PHRASES = {
@@ -40,7 +39,7 @@ WWWWWWSWW.SWWWWWW_S_WWSWW.S.WWWWW.S...SWW.S.WWWWMHS.WWSWW.S.WWWMW.S.WWSWM.S.MMMM
 ........W.H.....W.......W...M.W.W..W.MH.WHHH.H..M_lung__MHHHHH..W..HHM..W
 ........W.M.....W.......W.......W.MH.MHHW...M.M.W_______MERHHH..W....HM.W
 ........W.......MM......W..WWW.WWR.....RW.......W_______MMMHHH..W.H..R..W
-........WWWWWWSWW.S.MMWWWWWWWWSWWWWWWWSWW.S.WWWWW_S_WWWWWWSWWWSWW.S.WWWWW//難しく、手数が長いやつ
+........WWWWWWSWW.S.MMWWWWWWWWSWWWWWWWSWW.S.WWWWW_S_WWWWWWSWWWSWW.S.WWWWW
 ............WWHWHWH.W..MR.HRW.R.....MMMWW...MWWWW___W.......W.H...E.W
 ............WHWHWHH.WLHHH.W.WL...H..WMMMWWWWMWEWW___WL.HH...W..MWWWHW
 ............WWHWH.HWW...H.R.W...H.H.WMMMWWWWM_______W....HH.WWW.WWWHW
