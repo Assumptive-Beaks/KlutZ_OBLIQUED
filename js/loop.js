@@ -17,15 +17,64 @@ function updateBackgroundBrightness() {
 // 背景の縞模様の拡大倍率(線の太さ)を、1F→MAX_FLOOR階にかけて単調に拡大する。
 const STRIPE_ZOOM_MIN = 1;
 const STRIPE_ZOOM_MAX = 10;
-function updateBackgroundStripeZoom() {
+// 部屋の出入り(ドアをくぐって次の部屋に着地する瞬間)で縞ズームを
+// なめらかに変化させるのにかける時間(ms)
+const STRIPE_ZOOM_ROOM_TRANSITION_DURATION = 500;
+
+// currentRoom.floorに応じた目標ズーム値を計算する。
+// durationを渡すとその階数へ向けてなめらかにアニメーションし、
+// 渡さない場合は即座に反映する(ワープ・アンドゥ・初期ロードなど、
+// 見た目の連続性を気にしなくてよい場面向け)。
+function updateBackgroundStripeZoom(duration) {
     if (!currentRoom || !window.setStripeZoom) return;
     const t = (currentRoom.floor - 1) / (MAX_FLOOR - 1);
-    zoom = STRIPE_ZOOM_MIN + t * STRIPE_ZOOM_MAX;
-    window.setStripeZoom(zoom);
+    const targetZoom = STRIPE_ZOOM_MIN + t * STRIPE_ZOOM_MAX;
+    if (duration) {
+        animateStripeZoomTo(targetZoom, duration);
+    } else {
+        cancelStripeZoomAnim();
+        zoom = targetZoom;
+        window.setStripeZoom(zoom);
+    }
+}
+
+// 縞ズームを任意のtargetZoomまでduration(ms)かけて滑らかに変化させる。
+// requestAnimationFrameで独自に時間ベースの補間を行うため、
+// メインループ(animate)の部屋遷移カメラ処理とは独立しており、
+// 部屋の出入りやending.webpの再生時間ときっちり同期させられる。
+let stripeZoomAnimId = null;
+
+function cancelStripeZoomAnim() {
+    if (stripeZoomAnimId !== null) {
+        cancelAnimationFrame(stripeZoomAnimId);
+        stripeZoomAnimId = null;
+    }
+}
+
+function animateStripeZoomTo(targetZoom, duration) {
+    if (!window.setStripeZoom) return;
+    cancelStripeZoomAnim();
+
+    const startZoom = zoom;
+    const startTime = performance.now();
+
+    function step(now) {
+        const t = Math.min((now - startTime) / duration, 1);
+        zoom = startZoom + (targetZoom - startZoom) * t;
+        window.setStripeZoom(zoom);
+        stripeZoomAnimId = (t < 1) ? requestAnimationFrame(step) : null;
+    }
+    stripeZoomAnimId = requestAnimationFrame(step);
+}
+
+// エンディング演出(ending.webp再生)専用: 縞ズームをSTRIPE_ZOOM_MINまで戻す
+function animateStripeZoomToMin(duration) {
+    animateStripeZoomTo(STRIPE_ZOOM_MIN, duration);
 }
 
 function finishRoomEntry() {
     nextRoom = null;
+    cancelStripeZoomAnim();
 
     isPlayerDead = false;
     gameCleared = false;
@@ -119,7 +168,7 @@ function animate() {
             calculateLaser();
             checkArrivalHazards();
             updateBackgroundBrightness();
-            updateBackgroundStripeZoom();
+            updateBackgroundStripeZoom(STRIPE_ZOOM_ROOM_TRANSITION_DURATION);
         }
     }
     draw();
@@ -220,6 +269,9 @@ function playEndingSequence() {
             // 4) 画面外に出きったところで ending.webp に差し替えて再生開始
             endingPlayerSprite.src = 'assets/ending.webp';
 
+            // 5) ending.webpの再生時間と同期させて、背景の縞ズームを最小値まで戻す
+            animateStripeZoomToMin(ENDING_ANIM_DURATION);
+
             // ending.webpと同時にBGMをフェードアウトさせ、音量を0にする。
             // 次にタイトルへ戻って画面クリックした際は BGM.start() が音量を
             // DEFAULT_VOLUMEに戻し、状態も「無」からやり直すので普段通りに再開する。
@@ -236,13 +288,13 @@ function playEndingSequence() {
                 endingPlayerSprite.style.display = 'none';
                 endingPlayerSprite.style.transition = '';
 
-                // 6) 「KlutZ DETACHED」だけフェードイン
+                // 7) 「KlutZ DETACHED」だけフェードイン
                 endingOverlay.classList.add('active');
 
                 setTimeout(() => {
                     endingOverlay.classList.remove('active');
                     setTimeout(() => {
-                        // 7) ボタン待ちせず、起動時と同じ演出でタイトルへ自動復帰
+                        // 8) ボタン待ちせず、起動時と同じ演出でタイトルへ自動復帰
                         isEndingSequence = false;
                         allStageCleared = false;
                         gameContainer.style.transition = '';

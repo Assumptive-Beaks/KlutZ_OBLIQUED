@@ -21,7 +21,7 @@ W..M....W...M...W..M.H..W.M.....W.....M.H.....M.W.......W.......WHHHHHHHM.......
 W.HH............W.H.H.H.........W...M...WM......W.......W..H.M.HWHHHHHHHM.....H.M
 MLH.....W.......W.H.H.H.W.......W.......W....M.MW...W...W...H.H.WHHHHHHHM.HM..HHS
 W.HM.M..W.HHHHH...HMH.HMWHHHHHM.........HHHHHHHHH.......W....H..HHHHHHHHM..HH...M
-W.H.....WHHHHHHHWHHHHHHHWHHHHHH.W....H..WM......WHHHWHHHW.H.....WHHHHHHHH.HM..H..
+W.H.....WHHHHHHHWHHHHHHHWHHHHHH.W....H..WM......WHHHWHHHW.H.....WHHHHHHHH.HM..H.M
 W.HHHHHHWHHM...HW.H.M.H.W.....HHW..MHHH.HHHM....W.......HHW.....WHH.M.HHH..H.H..M
 W.R.....W.......W.......W..M....WHHHHMHHW..H....W.......W.......W.......MHM.....M
 WWWWWWSWW.SWWWWWW_S_WWSWW.S.WWWWW.S...SWW.S.WWWWMHS.WWSWW.S.WWWMW.S.WWSWM.S.MMMMM
